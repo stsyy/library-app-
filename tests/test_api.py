@@ -108,3 +108,11 @@ def test_not_found(client, resource):
     assert client.get(f"/api/{resource}/12345").status_code == 404
     assert client.put(f"/api/{resource}/12345", json={}).status_code == 404
     assert client.delete(f"/api/{resource}/12345").status_code == 404
+
+
+def test_book_search_by_title(client, author):
+    for title in ["Война и мир", "Анна Каренина", "Воскресение"]:
+        client.post("/api/books", json={"title": title, "author_id": author["id"]})
+    found = client.get("/api/books?title=Анна").get_json()
+    assert [b["title"] for b in found] == ["Анна Каренина"]
+    assert len(client.get("/api/books?title=Вос").get_json()) == 1
