@@ -6,13 +6,19 @@ param(
 )
 $ErrorActionPreference = "Stop"
 
-# 1. Остановить предыдущую версию, если запущена
-$old = Get-NetTCPConnection -LocalPort $Port -State Listen -ErrorAction SilentlyContinue
-if ($old) {
-    Write-Host "Stopping old instance (PID $($old.OwningProcess))"
-    Stop-Process -Id $old.OwningProcess -Force
-    Start-Sleep -Seconds 2
+# 1. Остановить предыдущую версию: дерево процессов из PID-файла
+#    и любые оставшиеся python-процессы, запущенные из каталога развёртывания с run.py
+$pidFile = Join-Path $DeployDir "app.pid"
+if (Test-Path $pidFile) {
+    $oldPid = Get-Content $pidFile
+    Write-Host "Stopping old instance (PID $oldPid)"
+    taskkill /T /F /PID $oldPid 2>&1 | Out-Null
+    Remove-Item $pidFile
 }
+Get-CimInstance Win32_Process -Filter "Name LIKE 'python%'" |
+    Where-Object { $_.CommandLine -like "*run.py*" -and $_.CommandLine -notlike "*jenkins*" } |
+    ForEach-Object { Write-Host "Stopping leftover $($_.Name) (PID $($_.ProcessId))"; Stop-Process -Id $_.ProcessId -Force }
+Start-Sleep -Seconds 2
 
 # 2. Скопировать код (база данных в каталоге развёртывания сохраняется)
 New-Item -ItemType Directory -Force $DeployDir | Out-Null
@@ -30,6 +36,7 @@ $cmd = "cmd.exe /c set PORT=$Port&& .venv\Scripts\python.exe run.py > app.log 2>
 $res = Invoke-CimMethod -ClassName Win32_Process -MethodName Create `
     -Arguments @{ CommandLine = $cmd; CurrentDirectory = $DeployDir }
 if ($res.ReturnValue -ne 0) { Write-Error "Failed to start app (code $($res.ReturnValue))"; exit 1 }
+Set-Content -Path $pidFile -Value $res.ProcessId
 Write-Host "Started app, PID $($res.ProcessId)"
 
 # 5. Smoke-тест
