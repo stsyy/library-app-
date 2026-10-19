@@ -16,7 +16,7 @@ pipeline {
 
     environment {
         PYTHON     = 'python'
-        DEPLOY_DIR = 'D:\course4\devops\deploy\library-app'
+        DEPLOY_DIR = 'D:\\course4\\devops\\deploy\\library-app'
         APP_PORT   = '5000'
     }
 
@@ -32,15 +32,15 @@ pipeline {
             steps {
                 bat '''
                     %PYTHON% -m venv .venv
-                    .venv\Scripts\python -m pip install --upgrade pip -q
-                    .venv\Scripts\pip install -r requirements.txt -q
+                    .venv\\Scripts\\python -m pip install --upgrade pip -q
+                    .venv\\Scripts\\pip install -r requirements.txt -q
                 '''
             }
         }
 
         stage('Test') {
             steps {
-                bat '.venv\Scripts\python -m pytest -v --junitxml=reports\junit.xml'
+                bat '.venv\\Scripts\\python -m pytest -v --junitxml=reports\\junit.xml'
             }
             post {
                 always {
@@ -52,7 +52,7 @@ pipeline {
         stage('Deploy') {
             when { branch 'main' }
             steps {
-                powershell '.\deploy.ps1 -DeployDir $env:DEPLOY_DIR -Port $env:APP_PORT -Python $env:PYTHON'
+                powershell '.\\deploy.ps1 -DeployDir $env:DEPLOY_DIR -Port $env:APP_PORT -Python $env:PYTHON'
             }
         }
     }
