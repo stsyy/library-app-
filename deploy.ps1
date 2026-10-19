@@ -21,14 +21,16 @@ Copy-Item -Recurse -Force app, run.py, requirements.txt $DeployDir
 # 3. Окружение и зависимости
 Push-Location $DeployDir
 if (-not (Test-Path .venv)) { & $Python -m venv .venv }
-& .venv\Scripts\pip install -r requirements.txt -q
-
-# 4. Запуск в фоне. JENKINS_NODE_COOKIE не даёт Jenkins убить процесс после сборки.
-$env:JENKINS_NODE_COOKIE = "dontKillMe"
-$env:PORT = "$Port"
-Start-Process -FilePath ".venv\Scripts\python.exe" -ArgumentList "run.py" -WorkingDirectory $DeployDir `
-    -WindowStyle Hidden -RedirectStandardOutput app.log -RedirectStandardError app.err.log
+& .venv\Scripts\pip install -r requirements.txt -q --disable-pip-version-check
 Pop-Location
+
+# 4. Запуск в фоне через WMI: процесс не входит в дерево процессов сборки,
+#    поэтому Jenkins не ждёт его завершения и не убивает его после окончания job.
+$cmd = "cmd.exe /c set PORT=$Port&& .venv\Scripts\python.exe run.py > app.log 2>&1"
+$res = Invoke-CimMethod -ClassName Win32_Process -MethodName Create `
+    -Arguments @{ CommandLine = $cmd; CurrentDirectory = $DeployDir }
+if ($res.ReturnValue -ne 0) { Write-Error "Failed to start app (code $($res.ReturnValue))"; exit 1 }
+Write-Host "Started app, PID $($res.ProcessId)"
 
 # 5. Smoke-тест
 for ($i = 0; $i -lt 15; $i++) {
