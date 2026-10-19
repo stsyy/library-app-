@@ -73,7 +73,13 @@ def _apply(obj, fields, data, partial):
 
 def _register(resource, model, fields):
     def list_items():
-        return jsonify([o.to_dict() for o in model.query.order_by(model.id).all()])
+        query = model.query
+        # Фильтр по подстроке: ?title=... для книг, ?name=... / ?full_name=... и т.д.
+        for name, (cast, _, _) in fields.items():
+            value = request.args.get(name)
+            if value is not None and cast is str:
+                query = query.filter(getattr(model, name).ilike(f"%{value}%"))
+        return jsonify([o.to_dict() for o in query.order_by(model.id).all()])
 
     def get_item(item_id):
         obj = db.session.get(model, item_id) or abort(404)
